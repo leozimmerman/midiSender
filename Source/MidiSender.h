@@ -52,143 +52,21 @@
 
 #pragma once
 
-
-//==============================================================================
-/** A demo synth sound that's just a basic sine wave.. */
-class SineWaveSound : public SynthesiserSound
+enum
 {
-public:
-    SineWaveSound() {}
-
-    bool appliesToNote (int /*midiNoteNumber*/) override    { return true; }
-    bool appliesToChannel (int /*midiChannel*/) override    { return true; }
+    timecodeHeight = 26,
+    midiKeyboardHeight = 70
 };
 
-//==============================================================================
-/** A simple demo synth voice that just plays a sine wave.. */
-class SineWaveVoice   : public SynthesiserVoice
-{
-public:
-    SineWaveVoice() {}
-
-    bool canPlaySound (SynthesiserSound* sound) override
-    {
-        return dynamic_cast<SineWaveSound*> (sound) != nullptr;
-    }
-
-    void startNote (int midiNoteNumber, float velocity,
-                    SynthesiserSound* /*sound*/,
-                    int /*currentPitchWheelPosition*/) override
-    {
-        currentAngle = 0.0;
-        level = velocity * 0.15;
-        tailOff = 0.0;
-
-        auto cyclesPerSecond = MidiMessage::getMidiNoteInHertz (midiNoteNumber);
-        auto cyclesPerSample = cyclesPerSecond / getSampleRate();
-
-        angleDelta = cyclesPerSample * MathConstants<double>::twoPi;
-    }
-
-    void stopNote (float /*velocity*/, bool allowTailOff) override
-    {
-        if (allowTailOff)
-        {
-            // start a tail-off by setting this flag. The render callback will pick up on
-            // this and do a fade out, calling clearCurrentNote() when it's finished.
-
-            if (tailOff == 0.0) // we only need to begin a tail-off if it's not already doing so - the
-                                // stopNote method could be called more than once.
-                tailOff = 1.0;
-        }
-        else
-        {
-            // we're being told to stop playing immediately, so reset everything..
-
-            clearCurrentNote();
-            angleDelta = 0.0;
-        }
-    }
-
-    void pitchWheelMoved (int /*newValue*/) override
-    {
-        // not implemented for the purposes of this demo!
-    }
-
-    void controllerMoved (int /*controllerNumber*/, int /*newValue*/) override
-    {
-        // not implemented for the purposes of this demo!
-    }
-
-    void renderNextBlock (AudioBuffer<float>& outputBuffer, int startSample, int numSamples) override
-    {
-        if (angleDelta != 0.0)
-        {
-            if (tailOff > 0.0)
-            {
-                while (--numSamples >= 0)
-                {
-                    auto currentSample = (float) (sin (currentAngle) * level * tailOff);
-
-                    for (auto i = outputBuffer.getNumChannels(); --i >= 0;)
-                        outputBuffer.addSample (i, startSample, currentSample);
-
-                    currentAngle += angleDelta;
-                    ++startSample;
-
-                    tailOff *= 0.99;
-
-                    if (tailOff <= 0.005)
-                    {
-                        // tells the synth that this voice has stopped
-                        clearCurrentNote();
-
-                        angleDelta = 0.0;
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                while (--numSamples >= 0)
-                {
-                    auto currentSample = (float) (sin (currentAngle) * level);
-
-                    for (auto i = outputBuffer.getNumChannels(); --i >= 0;)
-                        outputBuffer.addSample (i, startSample, currentSample);
-
-                    currentAngle += angleDelta;
-                    ++startSample;
-                }
-            }
-        }
-    }
-
-    using SynthesiserVoice::renderNextBlock;
-
-private:
-    double currentAngle = 0.0;
-    double angleDelta   = 0.0;
-    double level        = 0.0;
-    double tailOff      = 0.0;
-};
-
-//==============================================================================
-/** As the name suggest, this class does the actual audio processing. */
 class OscSenderAudioProcessor  : public AudioProcessor
 {
 public:
-    //==============================================================================
     OscSenderAudioProcessor()
         : AudioProcessor (getBusesProperties()),
-          state (*this, nullptr, "state",
-                 { std::make_unique<AudioParameterFloat> ("gain",  "Gain",           NormalisableRange<float> (0.0f, 1.0f), 0.9f),
-                   std::make_unique<AudioParameterFloat> ("delay", "Delay Feedback", NormalisableRange<float> (0.0f, 1.0f), 0.5f) })
+          state (*this, nullptr, "state", {})
     {
         // Add a sub-tree to store the state of our UI
         state.state.addChild ({ "uiState", { { "width",  400 }, { "height", 200 } }, {} }, -1, nullptr);
-
-        initialiseSynth();
     }
 
     ~OscSenderAudioProcessor() override = default;
@@ -217,22 +95,7 @@ public:
 
     void prepareToPlay (double newSampleRate, int /*samplesPerBlock*/) override
     {
-        // Use this method as the place to do any pre-playback
-        // initialisation that you need..
-        synth.setCurrentPlaybackSampleRate (newSampleRate);
         keyboardState.reset();
-
-        if (isUsingDoublePrecision())
-        {
-            delayBufferDouble.setSize (2, 12000);
-            delayBufferFloat .setSize (1, 1);
-        }
-        else
-        {
-            delayBufferFloat .setSize (2, 12000);
-            delayBufferDouble.setSize (1, 1);
-        }
-
         reset();
     }
 
@@ -245,23 +108,19 @@ public:
 
     void reset() override
     {
-        // Use this method as the place to clear any delay lines, buffers, etc, as it
-        // means there's been a break in the audio's continuity.
-        delayBufferFloat .clear();
-        delayBufferDouble.clear();
     }
 
     //==============================================================================
     void processBlock (AudioBuffer<float>& buffer, MidiBuffer& midiMessages) override
     {
         jassert (! isUsingDoublePrecision());
-        process (buffer, midiMessages, delayBufferFloat);
+        process (buffer, midiMessages);
     }
 
     void processBlock (AudioBuffer<double>& buffer, MidiBuffer& midiMessages) override
     {
         jassert (isUsingDoublePrecision());
-        process (buffer, midiMessages, delayBufferDouble);
+        process (buffer, midiMessages);
     }
 
     //==============================================================================
@@ -273,7 +132,7 @@ public:
     }
 
     //==============================================================================
-    const String getName() const override                             { return "AudioPluginDemo"; }
+    const String getName() const override                             { return "MidiSender"; }
     bool acceptsMidi() const override                                 { return true; }
     bool producesMidi() const override                                { return true; }
     double getTailLengthSeconds() const override                      { return 0.0; }
@@ -375,39 +234,24 @@ private:
     public:
         MidiSenderEditor (OscSenderAudioProcessor& owner)
             : AudioProcessorEditor (owner),
-              midiKeyboard         (owner.keyboardState, MidiKeyboardComponent::horizontalKeyboard),
-              gainAttachment       (owner.state, "gain",  gainSlider),
-              delayAttachment      (owner.state, "delay", delaySlider)
+              midiKeyboard         (owner.keyboardState, MidiKeyboardComponent::horizontalKeyboard)
         {
-            // add some sliders..
-            addAndMakeVisible (gainSlider);
-            gainSlider.setSliderStyle (Slider::Rotary);
-
-            addAndMakeVisible (delaySlider);
-            delaySlider.setSliderStyle (Slider::Rotary);
-
-            // add some labels for the sliders..
-            gainLabel.attachToComponent (&gainSlider, false);
-            gainLabel.setFont (Font (11.0f));
-
-            delayLabel.attachToComponent (&delaySlider, false);
-            delayLabel.setFont (Font (11.0f));
-
-            // add the midi keyboard component..
+          
             addAndMakeVisible (midiKeyboard);
 
-            // add a label that will display the current timecode and status..
             addAndMakeVisible (timecodeDisplayLabel);
             timecodeDisplayLabel.setFont (Font (Font::getDefaultMonospacedFontName(), 15.0f, Font::plain));
 
-            // set resize limits for this plug-in
-            setResizeLimits (400, 200, 1024, 700);
+            setResizeLimits (400,
+                             timecodeHeight + midiKeyboardHeight + 20,
+                             1024,
+                             700);
             setResizable (true, owner.wrapperType != wrapperType_AudioUnitv3);
 
             lastUIWidth .referTo (owner.state.state.getChildWithName ("uiState").getPropertyAsValue ("width",  nullptr));
             lastUIHeight.referTo (owner.state.state.getChildWithName ("uiState").getPropertyAsValue ("height", nullptr));
 
-            // set our component's initial size to be the last one that was stored in the filter's settings
+           
             setSize (lastUIWidth.getValue(), lastUIHeight.getValue());
 
             lastUIWidth. addListener (this);
@@ -430,17 +274,10 @@ private:
 
         void resized() override
         {
-            // This lays out our child components...
-
             auto r = getLocalBounds().reduced (8);
-
-            timecodeDisplayLabel.setBounds (r.removeFromTop (26));
-            midiKeyboard        .setBounds (r.removeFromBottom (70));
-
-            r.removeFromTop (20);
-            auto sliderArea = r.removeFromTop (60);
-            gainSlider.setBounds  (sliderArea.removeFromLeft (jmin (180, sliderArea.getWidth() / 2)));
-            delaySlider.setBounds (sliderArea.removeFromLeft (jmin (180, sliderArea.getWidth())));
+            
+            timecodeDisplayLabel.setBounds (r.removeFromTop (timecodeHeight));
+            midiKeyboard.setBounds (r.removeFromTop (midiKeyboardHeight + timecodeHeight));
 
             lastUIWidth  = getWidth();
             lastUIHeight = getHeight();
@@ -456,17 +293,6 @@ private:
             midiKeyboard.setVisible (! controllerIsAvailable);
         }
 
-        int getControlParameterIndex (Component& control) override
-        {
-            if (&control == &gainSlider)
-                return 0;
-
-            if (&control == &delaySlider)
-                return 1;
-
-            return -1;
-        }
-
         void updateTrackProperties()
         {
             auto trackColour = getProcessor().getTrackProperties().colour;
@@ -480,12 +306,8 @@ private:
     private:
         MidiKeyboardComponent midiKeyboard;
 
-        Label timecodeDisplayLabel,
-              gainLabel  { {}, "Throughput level:" },
-              delayLabel { {}, "Delay:" };
+        Label timecodeDisplayLabel;
 
-        Slider gainSlider, delaySlider;
-        AudioProcessorValueTreeState::SliderAttachment gainAttachment, delayAttachment;
         Colour backgroundColour;
 
         // these are used to persist the UI's size - the values are stored along with the
@@ -534,8 +356,7 @@ private:
         {
             MemoryOutputStream displayText;
 
-            displayText << "[" << SystemStats::getJUCEVersion() << "]   "
-            << String (pos.bpm, 2) << " bpm, "
+            displayText << String (pos.bpm, 2) << " bpm, "
             << pos.timeSigNumerator << '/' << pos.timeSigDenominator
             << "  -  " << timeToTimecodeString (pos.timeInSeconds)
             << "  -  " << quarterNotePositionToBarsBeatsString (pos.ppqPosition,
@@ -559,10 +380,8 @@ private:
 
     //==============================================================================
     template <typename FloatType>
-    void process (AudioBuffer<FloatType>& buffer, MidiBuffer& midiMessages, AudioBuffer<FloatType>& delayBuffer)
+    void process (AudioBuffer<FloatType>& buffer, MidiBuffer& midiMessages)
     {
-        auto gainParamValue  = state.getParameter ("gain") ->getValue();
-        auto delayParamValue = state.getParameter ("delay")->getValue();
         auto numSamples = buffer.getNumSamples();
 
         // In case we have more outputs than inputs, we'll clear any output
@@ -575,76 +394,13 @@ private:
         // add messages to the buffer if the user is clicking on the on-screen keys
         keyboardState.processNextMidiBuffer (midiMessages, 0, numSamples, true);
 
-        // and now get our synth to process these midi events and generate its output.
-        synth.renderNextBlock (buffer, midiMessages, 0, numSamples);
-
-        // Apply our delay effect to the new output..
-        applyDelay (buffer, delayBuffer, delayParamValue);
-
-        // Apply our gain change to the outgoing data..
-        applyGain (buffer, delayBuffer, gainParamValue);
-
         // Now ask the host for the current time so we can store it to be displayed later...
         updateCurrentTimeInfoFromHost();
     }
 
-    template <typename FloatType>
-    void applyGain (AudioBuffer<FloatType>& buffer, AudioBuffer<FloatType>& delayBuffer, float gainLevel)
-    {
-        ignoreUnused (delayBuffer);
-
-        for (auto channel = 0; channel < getTotalNumOutputChannels(); ++channel)
-            buffer.applyGain (channel, 0, buffer.getNumSamples(), gainLevel);
-    }
-
-    template <typename FloatType>
-    void applyDelay (AudioBuffer<FloatType>& buffer, AudioBuffer<FloatType>& delayBuffer, float delayLevel)
-    {
-        auto numSamples = buffer.getNumSamples();
-
-        auto delayPos = 0;
-
-        for (auto channel = 0; channel < getTotalNumOutputChannels(); ++channel)
-        {
-            auto channelData = buffer.getWritePointer (channel);
-            auto delayData = delayBuffer.getWritePointer (jmin (channel, delayBuffer.getNumChannels() - 1));
-            delayPos = delayPosition;
-
-            for (auto i = 0; i < numSamples; ++i)
-            {
-                auto in = channelData[i];
-                channelData[i] += delayData[delayPos];
-                delayData[delayPos] = (delayData[delayPos] + in) * delayLevel;
-
-                if (++delayPos >= delayBuffer.getNumSamples())
-                    delayPos = 0;
-            }
-        }
-
-        delayPosition = delayPos;
-    }
-
-    AudioBuffer<float> delayBufferFloat;
-    AudioBuffer<double> delayBufferDouble;
-
-    int delayPosition = 0;
-
-    Synthesiser synth;
-
     CriticalSection trackPropertiesLock;
     TrackProperties trackProperties;
 
-    void initialiseSynth()
-    {
-        auto numVoices = 8;
-
-        // Add some voices...
-        for (auto i = 0; i < numVoices; ++i)
-            synth.addVoice (new SineWaveVoice());
-
-        // ..and give the synth a sound to play
-        synth.addSound (new SineWaveSound());
-    }
 
     void updateCurrentTimeInfoFromHost()
     {
