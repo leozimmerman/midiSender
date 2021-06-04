@@ -95,6 +95,7 @@
 		21B5CC5F81E4C279981E20DD /* Info-VST3.plist */ /* Info-VST3.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; name = "Info-VST3.plist"; path = "Info-VST3.plist"; sourceTree = SOURCE_ROOT; };
 		2265D4FA6ED7C25824454A72 /* VST3 */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MidiSender.vst3; sourceTree = BUILT_PRODUCTS_DIR; };
 		260A8B0386ABEC69CFEC84A5 /* include_juce_events.mm */ /* include_juce_events.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = include_juce_events.mm; path = ../../JuceLibraryCode/include_juce_events.mm; sourceTree = SOURCE_ROOT; };
+		29E383CCA93EDCE5EC461A81 /* MidiSenderEditor.h */ /* MidiSenderEditor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = MidiSenderEditor.h; path = ../../Source/MidiSenderEditor.h; sourceTree = SOURCE_ROOT; };
 		2BAF23F997C30B5752F0D6E1 /* CoreAudioKit.framework */ /* CoreAudioKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudioKit.framework; path = System/Library/Frameworks/CoreAudioKit.framework; sourceTree = SDKROOT; };
 		3085B7654A724847D71C1EF4 /* include_juce_data_structures.mm */ /* include_juce_data_structures.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; name = include_juce_data_structures.mm; path = ../../JuceLibraryCode/include_juce_data_structures.mm; sourceTree = SOURCE_ROOT; };
 		31B315FEF4B29F23FA202D9D /* CoreMIDI.framework */ /* CoreMIDI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMIDI.framework; path = System/Library/Frameworks/CoreMIDI.framework; sourceTree = SDKROOT; };
@@ -278,6 +279,7 @@
 				9BFAF4D59D54555EECADFD01,
 				1C78FC02E7C9B5582A7075C5,
 				4BD4728D0AF47C762D85261B,
+				29E383CCA93EDCE5EC461A81,
 			);
 			name = Source;
 			sourceTree = "<group>";

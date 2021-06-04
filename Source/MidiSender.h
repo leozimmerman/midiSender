@@ -51,33 +51,13 @@
 *******************************************************************************/
 
 #pragma once
+
 #include "OscManager.h"
-
-typedef juce::AudioProcessorValueTreeState::SliderAttachment SliderAttachment;
-
-namespace IDs
-{
-    static juce::String oscPort  { "oscPort" };
-    static juce::String oscPortName  { "Osc Port" };
-
-    static juce::Identifier oscData     { "OSC" };
-    static juce::Identifier hostAddress { "host" };
-    static juce::Identifier mainId      { "main" };
-}
-
-enum
-{
-    timecodeHeight = 26,
-    midiKeyboardHeight = 70,
-    oscSectionHeight = 35,
-    portSliderWidth = 100,
-    maindIdLabelWidth = 100,
-    hostLabelWidth = 200,
-    vertMargin = 30
-};
+#include "MidiSenderEditor.h"
 
 class OscSenderAudioProcessor  : public AudioProcessor,
                                  public OscHostListener,
+                                 public TrackInfoProvider,
                                  private juce::AudioProcessorValueTreeState::Listener
 {
 public:
@@ -167,8 +147,9 @@ public:
 
     AudioProcessorEditor* createEditor() override
     {
-        auto editor = new MidiSenderEditor (*this);
+        auto editor = new MidiSenderEditor (*this, valueTreeState, keyboardState);
         editor->addOscListener(this);
+        editor->addTrackInfoProvider(this);
         return editor;
     }
 
@@ -215,39 +196,15 @@ public:
                  editor->updateTrackProperties();
         });
     }
-
-    TrackProperties getTrackProperties() const
-    {
+    
+    TrackProperties getTrackProperties() override {
         const ScopedLock sl (trackPropertiesLock);
         return trackProperties;
     }
 
-    class SpinLockedPosInfo
-    {
-    public:
-        SpinLockedPosInfo() { info.resetToDefault(); }
-
-        // Wait-free, but setting new info may fail if the main thread is currently
-        // calling `get`. This is unlikely to matter in practice because
-        // we'll be calling `set` much more frequently than `get`.
-        void set (const AudioPlayHead::CurrentPositionInfo& newInfo)
-        {
-            const juce::SpinLock::ScopedTryLockType lock (mutex);
-
-            if (lock.isLocked())
-                info = newInfo;
-        }
-
-        AudioPlayHead::CurrentPositionInfo get() const noexcept
-        {
-            const juce::SpinLock::ScopedLockType lock (mutex);
-            return info;
-        }
-
-    private:
-        juce::SpinLock mutex;
-        AudioPlayHead::CurrentPositionInfo info;
-    };
+    SpinLockedPosInfo* getLastPosInfo () override {
+        return &lastPosInfo;
+    }
 
     //==============================================================================
     // this is kept up to date with the midi messages that arrive, and the UI component
@@ -262,15 +219,11 @@ public:
 private:
     //==============================================================================
     template <typename FloatType>
-    void process (AudioBuffer<FloatType>& buffer, MidiBuffer& midiMessages)
-    {
+    void process (AudioBuffer<FloatType>& buffer, MidiBuffer& midiMessages) {
         auto numSamples = buffer.getNumSamples();
-
         for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
             buffer.clear (i, 0, numSamples);
-
         keyboardState.processNextMidiBuffer (midiMessages, 0, numSamples, true);
-
         updateCurrentTimeInfoFromHost();
     }
 
@@ -303,256 +256,6 @@ private:
         return BusesProperties().withInput  ("Input",  AudioChannelSet::stereo(), true)
                                 .withOutput ("Output", AudioChannelSet::stereo(), true);
     }
-    
-    /** This is the editor component that our filter will display. */
-    class MidiSenderEditor : public AudioProcessorEditor,
-                            private Timer,
-                            private Value::Listener,
-                            public juce::Label::Listener
-    {
-    public:
-        MidiSenderEditor (OscSenderAudioProcessor& owner)
-            : AudioProcessorEditor (owner),
-              midiKeyboard         (owner.keyboardState, MidiKeyboardComponent::horizontalKeyboard),
-              valueTreeState(owner.valueTreeState)
-        {
-          
-            addAndMakeVisible (midiKeyboard);
-
-            addAndMakeVisible (timecodeDisplayLabel);
-            timecodeDisplayLabel.setFont (Font (Font::getDefaultMonospacedFontName(), 15.0f, Font::plain));
-
-            addAndMakeVisible (hostLabel);
-            hostLabel.setFont (juce::Font (20.0, juce::Font::bold));
-            hostLabel.setComponentID("hostLabel");
-            hostLabel.setEditable(true);
-            
-            hostLabel.setColour (juce::Label::textColourId, juce::Colours::lightgreen);
-            hostLabel.setJustificationType (juce::Justification::centredRight);
-            hostLabel.addListener(this);
-            
-            addAndMakeVisible (mainIDLabel);
-            mainIDLabel.setComponentID("mainIDLabel");
-            mainIDLabel.setFont (juce::Font (20.0, juce::Font::bold));
-            mainIDLabel.setEditable(true);
-            
-            mainIDLabel.setColour (juce::Label::textColourId, juce::Colours::lightblue);
-            mainIDLabel.setJustificationType (juce::Justification::centredRight);
-            mainIDLabel.addListener(this);
-            
-            addAndMakeVisible (portSlider);
-            portSlider.setSliderStyle(juce::Slider::IncDecButtons);
-            portAttachment.reset (new SliderAttachment (valueTreeState, IDs::oscPort, portSlider));
-            
-            updateOscLabelsTexts(false);
-            
-            setResizeLimits (400,
-                             timecodeHeight + midiKeyboardHeight + oscSectionHeight + vertMargin,
-                             1024,
-                             700);
-            setResizable (true, owner.wrapperType != wrapperType_AudioUnitv3);
-
-            lastUIWidth .referTo (valueTreeState.state.getChildWithName ("uiState").getPropertyAsValue ("width",  nullptr));
-            lastUIHeight.referTo (valueTreeState.state.getChildWithName ("uiState").getPropertyAsValue ("height", nullptr));
-           
-            setSize (lastUIWidth.getValue(), lastUIHeight.getValue());
-
-            lastUIWidth. addListener (this);
-            lastUIHeight.addListener (this);
-
-            updateTrackProperties();
-
-            // start a timer which will keep our timecode display updated
-            startTimerHz (30);
-        }
-
-        ~MidiSenderEditor() override {}
-
-        //==============================================================================
-        void paint (Graphics& g) override {
-            g.setColour (backgroundColour);
-            g.fillAll();
-        }
-
-        void resized() override {
-            auto r = getLocalBounds(); //.reduced (8);
-            
-            timecodeDisplayLabel.setBounds (r.removeFromTop (timecodeHeight));
-            midiKeyboard.setBounds (r.removeFromTop (midiKeyboardHeight + timecodeHeight));
-            
-            int spacing = 10;
-            int yPos = getHeight() - oscSectionHeight;
-            mainIDLabel.setBounds (spacing,
-                                   yPos,
-                                   maindIdLabelWidth,
-                                   oscSectionHeight);
-            portSlider.setBounds(getWidth() - portSliderWidth - spacing,
-                                 yPos,
-                                 portSliderWidth,
-                                 oscSectionHeight);
-            hostLabel.setBounds (getWidth() - portSliderWidth - hostLabelWidth - spacing*2,
-                                 yPos,
-                                 hostLabelWidth,
-                                 oscSectionHeight);
-
-            lastUIWidth  = getWidth();
-            lastUIHeight = getHeight();
-        }
-
-        void timerCallback() override {
-            updateTimecodeDisplay (getProcessor().lastPosInfo.get());
-        }
-
-        void hostMIDIControllerIsAvailable (bool controllerIsAvailable) override {
-            midiKeyboard.setVisible (! controllerIsAvailable);
-        }
-
-        void updateTrackProperties() {
-            auto trackColour = getProcessor().getTrackProperties().colour;
-            auto& lf = getLookAndFeel();
-
-            backgroundColour = (trackColour == Colour() ? lf.findColour (ResizableWindow::backgroundColourId)
-                                                        : trackColour.withAlpha (1.0f).withBrightness (0.266f));
-            repaint();
-        }
-        
-        void labelTextChanged (juce::Label* labelThatHasChanged) override {
-            if (labelThatHasChanged->getComponentID() == "hostLabel") {
-                setOscIPAdress(labelThatHasChanged->getText());
-            } else if (labelThatHasChanged->getComponentID() == "mainIDLabel") {
-                setOscMainID(labelThatHasChanged->getText());
-            }
-        }
-        
-        void addOscListener(OscHostListener* listener) {
-            oscListener = listener;
-        }
-        
-        void updateOscLabelsTexts(bool sendNotification) {
-            juce::String hostAddress = DEFAULT_OSC_HOST;
-            getLastHostAddress(hostAddress);
-            
-            juce::String mainId = DEFAULT_OSC_MAIN_ID;
-            getLastMainId(mainId);
-
-            auto doSend = sendNotification ? juce::sendNotification : juce::dontSendNotification;
-            mainIDLabel.setText (mainId, doSend);
-            hostLabel.setText (hostAddress, doSend);
-        }
-
-    private:
-        MidiKeyboardComponent midiKeyboard;
-        juce::AudioProcessorValueTreeState& valueTreeState;
-        
-        Label timecodeDisplayLabel;
-        Colour backgroundColour;
-        Value lastUIWidth, lastUIHeight;
-        
-        juce::Label hostLabel;
-        juce::Label mainIDLabel;
-        juce::Slider portSlider;
-        std::unique_ptr<SliderAttachment> portAttachment;
-        
-        OscHostListener* oscListener;
-        
-        OscSenderAudioProcessor& getProcessor() const
-        {
-            return static_cast<OscSenderAudioProcessor&> (processor);
-        }
-        
-        bool getLastHostAddress(juce::String& address) {
-            auto oscNode = valueTreeState.state.getOrCreateChildWithName (IDs::oscData, nullptr);
-            if (oscNode.hasProperty (IDs::hostAddress) == false)
-                return false;
-
-            address  = oscNode.getProperty (IDs::hostAddress);
-            return true;
-        }
-        
-        bool getLastMainId(juce::String& identifier) {
-            auto oscNode = valueTreeState.state.getOrCreateChildWithName (IDs::oscData, nullptr);
-            if (oscNode.hasProperty (IDs::mainId) == false)
-                return false;
-
-            identifier  = oscNode.getProperty (IDs::mainId);
-            return true;
-        }
-        
-        void setLastMainId(juce::String mainId) {
-            auto oscNode = valueTreeState.state.getOrCreateChildWithName (IDs::oscData, nullptr);
-            oscNode.setProperty (IDs::mainId,  mainId,  nullptr);
-        }
-        
-        void setLastHostAddress(juce::String address) {
-            auto oscNode = valueTreeState.state.getOrCreateChildWithName (IDs::oscData, nullptr);
-            oscNode.setProperty (IDs::hostAddress,  address,  nullptr);
-        }
-        
-        void setOscIPAdress(const juce::String address) {
-            if (oscListener != nullptr) {
-                oscListener->oscHostHasChanged(address);
-                setLastHostAddress(address);
-            }
-        }
-
-        void setOscMainID(const juce::String mainID) {
-            if (oscListener != nullptr) {
-                oscListener->oscMainIDHasChanged(mainID);
-                setLastMainId(mainID);
-            }
-        }
-        
-        // quick-and-dirty function to format a timecode string
-        static String timeToTimecodeString (double seconds) {
-            auto millisecs = roundToInt (seconds * 1000.0);
-            auto absMillisecs = std::abs (millisecs);
-
-            return String::formatted ("%02d:%02d:%02d.%03d",
-                                      millisecs / 3600000,
-                                      (absMillisecs / 60000) % 60,
-                                      (absMillisecs / 1000)  % 60,
-                                      absMillisecs % 1000);
-        }
-
-        // quick-and-dirty function to format a bars/beats string
-        static String quarterNotePositionToBarsBeatsString (double quarterNotes, int numerator, int denominator) {
-            if (numerator == 0 || denominator == 0)
-                return "1|1|000";
-
-            auto quarterNotesPerBar = (numerator * 4 / denominator);
-            auto beats  = (fmod (quarterNotes, quarterNotesPerBar) / quarterNotesPerBar) * numerator;
-
-            auto bar    = ((int) quarterNotes) / quarterNotesPerBar + 1;
-            auto beat   = ((int) beats) + 1;
-            auto ticks  = ((int) (fmod (beats, 1.0) * 960.0 + 0.5));
-
-            return String::formatted ("%d|%d|%03d", bar, beat, ticks);
-        }
-
-        // Updates the text in our position label.
-        void updateTimecodeDisplay (AudioPlayHead::CurrentPositionInfo pos) {
-            MemoryOutputStream displayText;
-
-            displayText << String (pos.bpm, 2) << " bpm, "
-            << pos.timeSigNumerator << '/' << pos.timeSigDenominator
-            << "  -  " << timeToTimecodeString (pos.timeInSeconds)
-            << "  -  " << quarterNotePositionToBarsBeatsString (pos.ppqPosition,
-                                                                pos.timeSigNumerator,
-                                                                pos.timeSigDenominator);
-
-            if (pos.isRecording)
-                displayText << "  (recording)";
-            else if (pos.isPlaying)
-                displayText << "  (playing)";
-
-            timecodeDisplayLabel.setText (displayText.toString(), dontSendNotification);
-        }
-
-        // called when the stored window size changes
-        void valueChanged (Value&) override {
-            setSize (lastUIWidth.getValue(), lastUIHeight.getValue());
-        }
-    };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (OscSenderAudioProcessor)
 };

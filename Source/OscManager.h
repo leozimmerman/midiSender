@@ -69,3 +69,4 @@ public:
     virtual void oscHostHasChanged (juce::String newOscHostAdress) = 0;
     virtual void oscMainIDHasChanged (juce::String newOscMainID) = 0;
 };
+

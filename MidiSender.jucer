@@ -11,6 +11,8 @@
       <FILE id="YgYPUt" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
       <FILE id="hHd4su" name="OscManager.h" compile="0" resource="0" file="Source/OscManager.h"/>
       <FILE id="g6axfA" name="MidiSender.h" compile="0" resource="0" file="Source/MidiSender.h"/>
+      <FILE id="Y08ntj" name="MidiSenderEditor.h" compile="0" resource="0"
+            file="Source/MidiSenderEditor.h"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>
