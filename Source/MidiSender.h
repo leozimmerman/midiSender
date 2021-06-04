@@ -225,6 +225,19 @@ private:
             buffer.clear (i, 0, numSamples);
         keyboardState.processNextMidiBuffer (midiMessages, 0, numSamples, true);
         updateCurrentTimeInfoFromHost();
+        
+        // SEND OSC
+        for (const auto metadata : midiMessages) {
+            auto message = metadata.getMessage();
+            
+            const auto timeStamp = metadata.samplePosition;
+            int channel = message.getChannel();
+            int number = message.getNoteNumber();
+            float velocityFloat = message.getFloatVelocity();
+            bool isNoteOn = message.isNoteOn();
+            
+            oscManager.sendNoteBundle(number, velocityFloat, channel, isNoteOn, timeStamp);
+        }
     }
 
     CriticalSection trackPropertiesLock;
