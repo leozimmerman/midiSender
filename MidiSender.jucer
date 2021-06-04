@@ -9,8 +9,8 @@
   <MAINGROUP id="i50eHD" name="MidiSender">
     <GROUP id="{A942739E-4D55-8B6E-A8F7-B93DA769567C}" name="Source">
       <FILE id="YgYPUt" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>
-      <FILE id="tbVy4V" name="AudioPluginDemo copy.h" compile="0" resource="0"
-            file="Source/AudioPluginDemo copy.h"/>
+      <FILE id="hHd4su" name="OscManager.h" compile="0" resource="0" file="Source/OscManager.h"/>
+      <FILE id="g6axfA" name="MidiSender.h" compile="0" resource="0" file="Source/MidiSender.h"/>
     </GROUP>
   </MAINGROUP>
   <MODULES>
