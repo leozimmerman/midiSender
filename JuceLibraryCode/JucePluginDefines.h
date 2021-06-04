@@ -38,16 +38,16 @@
  #define JucePlugin_Enable_IAA             0
 #endif
 #ifndef  JucePlugin_Name
- #define JucePlugin_Name                   "MidiSender"
+ #define JucePlugin_Name                   "Midi Sender"
 #endif
 #ifndef  JucePlugin_Desc
- #define JucePlugin_Desc                   "MidiSender"
+ #define JucePlugin_Desc                   "Sends Midi Notes over OSC"
 #endif
 #ifndef  JucePlugin_Manufacturer
  #define JucePlugin_Manufacturer           "Oleo Lab"
 #endif
 #ifndef  JucePlugin_ManufacturerWebsite
- #define JucePlugin_ManufacturerWebsite    "http://juce.com"
+ #define JucePlugin_ManufacturerWebsite    ""
 #endif
 #ifndef  JucePlugin_ManufacturerEmail
  #define JucePlugin_ManufacturerEmail      ""
@@ -149,7 +149,7 @@
  #define JucePlugin_IAASubType             JucePlugin_PluginCode
 #endif
 #ifndef  JucePlugin_IAAName
- #define JucePlugin_IAAName                "Oleo Lab: MidiSender"
+ #define JucePlugin_IAAName                "Oleo Lab: Midi Sender"
 #endif
 #ifndef  JucePlugin_VSTNumMidiInputs
  #define JucePlugin_VSTNumMidiInputs       16

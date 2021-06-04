@@ -57,8 +57,9 @@ public:
     void sendNoteBundle(int noteNumber, float velocity, int channel, bool noteOn, int timeStamp) {
         if (!_isConnected) return;
         juce::String root = "/" + _mainID;
-        juce::String mainName = "midiNote/" + juce::String(timeStamp);
-        juce::String mainAddress = root + "/" + mainName + "/";
+        juce::String mainName = "midiNote";
+        juce::String identifier = juce::String(noteNumber);
+        juce::String mainAddress = root + "/" + mainName + "/" + identifier + "/";
         
         OSCBundle bundle = OSCBundle();
         

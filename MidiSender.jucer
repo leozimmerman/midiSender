@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<JUCERPROJECT name="MidiSender" companyName="Oleo Lab" version="1.0.0" userNotes="Midi OSC Sender"
-              companyWebsite="http://juce.com" displaySplashScreen="1" defines="PIP_JUCE_EXAMPLES_DIRECTORY=L1VzZXJzL2xlby9EZXZlbG9wbWVudC9KVUNFL2V4YW1wbGVz"
+<JUCERPROJECT name="MidiSender" companyName="Oleo Lab" version="1.0.0" userNotes="Midi Notes OSC Sender"
+              displaySplashScreen="1" defines="PIP_JUCE_EXAMPLES_DIRECTORY=L1VzZXJzL2xlby9EZXZlbG9wbWVudC9KVUNFL2V4YW1wbGVz"
               projectType="audioplug" pluginAUIsSandboxSafe="1" pluginManufacturer="Oleo Lab"
               pluginFormats="buildVST3,buildAU,buildStandalone,buildAUv3" pluginCharacteristicsValue="pluginIsSynth,pluginWantsMidiIn,pluginProducesMidiOut,pluginEditorRequiresKeys"
               useAppConfig="0" addUsingNamespaceToJuceHeader="1" id="wvMQp7"
-              jucerFormatVersion="1">
+              jucerFormatVersion="1" pluginName="Midi Sender" pluginDesc="Sends Midi Notes over OSC">
   <MAINGROUP id="i50eHD" name="MidiSender">
     <GROUP id="{A942739E-4D55-8B6E-A8F7-B93DA769567C}" name="Source">
       <FILE id="YgYPUt" name="Main.cpp" compile="1" resource="0" file="Source/Main.cpp"/>

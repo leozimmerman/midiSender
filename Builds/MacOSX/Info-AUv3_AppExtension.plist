@@ -37,9 +37,9 @@
         <array>
           <dict>
             <key>name</key>
-            <string>Oleo Lab: MidiSender</string>
+            <string>Oleo Lab: Midi Sender</string>
             <key>description</key>
-            <string>MidiSender</string>
+            <string>Sends Midi Notes over OSC</string>
             <key>factoryFunction</key>
             <string>MidiSenderAUFactoryAUv3</string>
             <key>manufacturer</key>
