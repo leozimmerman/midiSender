@@ -238,6 +238,15 @@ private:
             
             oscManager.sendNoteBundle(number, velocityFloat, channel, isNoteOn, timeStamp);
         }
+        
+        auto pos = lastPosInfo.get();
+        oscManager.sendValue(pos.bpm, "BPM");
+        oscManager.sendValue(pos.timeSigNumerator, "TIME-SIGN-NUMERATOR");
+        oscManager.sendValue(pos.timeSigDenominator, "TIME-SIGN-DENOMINATOR");
+        oscManager.sendValue(pos.ppqPosition, "PPQ-POSITION");
+        oscManager.sendValue(pos.timeInSeconds, "TIME-IN-SECONDS");
+        oscManager.sendValue(pos.isPlaying, "IS-PLAYING");
+        oscManager.sendValue(pos.isRecording, "IS-RECORDING");
     }
 
     CriticalSection trackPropertiesLock;
