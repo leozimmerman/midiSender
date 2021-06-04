@@ -17,39 +17,6 @@
   ==============================================================================
 */
 
-/*******************************************************************************
- The block below describes the properties of this PIP. A PIP is a short snippet
- of code that can be read by the Projucer and used to generate a JUCE project.
-
- BEGIN_JUCE_PIP_METADATA
-
- name:                  MidiSender
- version:               1.0.0
- vendor:                Oleo Lab
- website:               http://juce.com
- description:          Midi OSC Sender
-
- dependencies:          juce_audio_basics, juce_audio_devices, juce_audio_formats,
-                        juce_audio_plugin_client, juce_audio_processors,
-                        juce_audio_utils, juce_core, juce_data_structures,
-                        juce_events, juce_graphics, juce_gui_basics, juce_gui_extra, juce_osc
- exporters:             xcode_mac
-
- moduleFlags:           JUCE_STRICT_REFCOUNTEDPOINTER=1
-
- type:                  AudioProcessor
- mainClass:             OscSenderAudioProcessor
-
- useLocalCopy:          1
-
- pluginCharacteristics: pluginIsSynth, pluginWantsMidiIn, pluginProducesMidiOut,
-                        pluginEditorRequiresKeys
- extraPluginFormats:    AUv3
-
- END_JUCE_PIP_METADATA
-
-*******************************************************************************/
-
 #pragma once
 
 #include "OscManager.h"
@@ -57,7 +24,6 @@
 
 class OscSenderAudioProcessor  : public AudioProcessor,
                                  public OscHostListener,
-                                 public TrackInfoProvider,
                                  private juce::AudioProcessorValueTreeState::Listener
 {
 public:
@@ -147,9 +113,8 @@ public:
 
     AudioProcessorEditor* createEditor() override
     {
-        auto editor = new MidiSenderEditor (*this, valueTreeState, keyboardState);
+        editor = new MidiSenderEditor (*this, valueTreeState, keyboardState);
         editor->addOscListener(this);
-        editor->addTrackInfoProvider(this);
         return editor;
     }
 
@@ -178,53 +143,29 @@ public:
     {
         // Restore our plug-in's state from the xml representation stored in the above
         // method.
-        if (auto xmlState = getXmlFromBinary (data, sizeInBytes))
+        if (auto xmlState = getXmlFromBinary (data, sizeInBytes)) {
             valueTreeState.replaceState (ValueTree::fromXml (*xmlState));
-    }
-
-    //==============================================================================
-    void updateTrackProperties (const TrackProperties& properties) override
-    {
-        {
-            const ScopedLock sl (trackPropertiesLock);
-            trackProperties = properties;
+            editor->updateOscLabelsTexts(true);
         }
-
-        MessageManager::callAsync ([this]
-        {
-            if (auto* editor = dynamic_cast<MidiSenderEditor*> (getActiveEditor()))
-                 editor->updateTrackProperties();
-        });
+            
     }
     
-    TrackProperties getTrackProperties() override {
-        const ScopedLock sl (trackPropertiesLock);
-        return trackProperties;
-    }
-
-    SpinLockedPosInfo* getLastPosInfo () override {
-        return &lastPosInfo;
-    }
-
     //==============================================================================
     // this is kept up to date with the midi messages that arrive, and the UI component
     // registers with it so it can represent the incoming messages
     MidiKeyboardState keyboardState;
-    // this keeps a copy of the last set of time info that was acquired during an audio
-    // callback - the UI component will read this and display it.
-    SpinLockedPosInfo lastPosInfo;
     AudioProcessorValueTreeState valueTreeState;
     OscManager oscManager;
 
 private:
-    //==============================================================================
+    MidiSenderEditor* editor;
+
     template <typename FloatType>
     void process (AudioBuffer<FloatType>& buffer, MidiBuffer& midiMessages) {
         auto numSamples = buffer.getNumSamples();
         for (auto i = getTotalNumInputChannels(); i < getTotalNumOutputChannels(); ++i)
             buffer.clear (i, 0, numSamples);
         keyboardState.processNextMidiBuffer (midiMessages, 0, numSamples, true);
-        updateCurrentTimeInfoFromHost();
         
         // SEND OSC
         for (const auto metadata : midiMessages) {
@@ -238,39 +179,6 @@ private:
             
             oscManager.sendNoteBundle(number, velocityFloat, channel, isNoteOn, timeStamp);
         }
-        
-        auto pos = lastPosInfo.get();
-        oscManager.sendValue(pos.bpm, "BPM");
-        oscManager.sendValue(pos.timeSigNumerator, "TIME-SIGN-NUMERATOR");
-        oscManager.sendValue(pos.timeSigDenominator, "TIME-SIGN-DENOMINATOR");
-        oscManager.sendValue(pos.ppqPosition, "PPQ-POSITION");
-        oscManager.sendValue(pos.timeInSeconds, "TIME-IN-SECONDS");
-        oscManager.sendValue(pos.isPlaying, "IS-PLAYING");
-        oscManager.sendValue(pos.isRecording, "IS-RECORDING");
-    }
-
-    CriticalSection trackPropertiesLock;
-    TrackProperties trackProperties;
-
-    void updateCurrentTimeInfoFromHost()
-    {
-        const auto newInfo = [&]
-        {
-            if (auto* ph = getPlayHead())
-            {
-                AudioPlayHead::CurrentPositionInfo result;
-
-                if (ph->getCurrentPosition (result))
-                    return result;
-            }
-
-            // If the host fails to provide the current time, we'll just use default values
-            AudioPlayHead::CurrentPositionInfo result;
-            result.resetToDefault();
-            return result;
-        }();
-
-        lastPosInfo.set (newInfo);
     }
 
     static BusesProperties getBusesProperties()
