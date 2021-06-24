@@ -58,26 +58,26 @@ public:
         if (!_isConnected) return;
         juce::String root = "/" + _mainID;
         juce::String mainName = "midiNote";
-        juce::String identifier = juce::String(noteNumber);
-        juce::String mainAddress = root + "/" + mainName + "/" + identifier + "/";
+        juce::String noteIdentifier = juce::String(noteNumber);
+        juce::String mainAddress = root + "/" + mainName + "/";
         
         OSCBundle bundle = OSCBundle();
         
-        juce::OSCAddressPattern noteNumberAddress = juce::OSCAddressPattern(mainAddress + "number");
+        juce::OSCAddressPattern noteNumberAddress = juce::OSCAddressPattern(mainAddress + "number/" + noteIdentifier);
         OSCMessage noteNumberMessage = OSCMessage(noteNumberAddress, noteNumber);
         bundle.addElement(noteNumberMessage);
         
-        juce::OSCAddressPattern velocityAddress = juce::OSCAddressPattern(mainAddress + "velocity");
+        juce::OSCAddressPattern velocityAddress = juce::OSCAddressPattern(mainAddress + "velocity/" + noteIdentifier);
         OSCMessage velocityMessage = OSCMessage(velocityAddress, velocity);
         bundle.addElement(velocityMessage);
         
-        juce::OSCAddressPattern onOffAddress = juce::OSCAddressPattern(mainAddress + "onOff");
+        juce::OSCAddressPattern onOffAddress = juce::OSCAddressPattern(mainAddress + "onOff/" + noteIdentifier);
         OSCMessage onOffMessage = OSCMessage(onOffAddress, noteOn);
         bundle.addElement(onOffMessage);
         
-        juce::OSCAddressPattern channelAddress = juce::OSCAddressPattern(mainAddress + "channel");
-        OSCMessage channelMessage = OSCMessage(channelAddress, channel);
-        bundle.addElement(channelMessage);
+//        juce::OSCAddressPattern channelAddress = juce::OSCAddressPattern(mainAddress + "channel/");
+//        OSCMessage channelMessage = OSCMessage(channelAddress, channel);
+//        bundle.addElement(channelMessage);
         
         oscSender.send(bundle);
     }
